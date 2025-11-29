@@ -299,7 +299,9 @@
                     const r = this.rateOfReturn;
                     const x = this.retirementMultiplier || 25;
                     const existing = this.existingSavingsMultiplier;
-                    const target = x * (1 - S); // Target in multiples of annual spending
+
+                    // Target is simply the retirement multiplier (25x annual spending)
+                    const target = x;
 
                     const maxYears = Math.ceil(this.yearsToRetirement) + 5;
                     const years = [];
