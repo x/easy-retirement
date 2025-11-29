@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Easy Retirement Calculator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="app.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+</head>
+
+<body>
+    <main class="container" x-data="retirementCalculator()">
+        <h1>Easy Retirement Calculator</h1>
+        <p>Calculate your years until retirement based on your savings rate</p>
+        <article>
+
+            <div>
+                <label for="savings-rate">
+                    Savings Rate (% of post-tax income)
+                    <input type="number" id="savings-rate" x-model.number="savingsRatePercent" min="1" max="100"
+                        step="1" placeholder="15" aria-label="Percent">
+                </label>
+                <small>What percentage of your post-tax income do you save?</small>
+            </div>
+
+            <details>
+                <summary>Advanced Settings</summary>
+
+                <fieldset>
+                    <legend>Income (for dollar-based calculations)</legend>
+                    <div class="grid">
+                        <label>
+                            Annual Pre-Tax Income
+                            <input type="number" x-model.number="preTaxIncome" min="0" step="1000" placeholder="100000"
+                                aria-label="Dollar amount" @input="usePreTaxMode = true">
+                        </label>
+                        <label>
+                            Tax Rate
+                            <input type="number" x-model.number="taxRatePercent" min="0" max="100" step="0.1"
+                                :placeholder="estimatedTaxRate.toFixed(1)" aria-label="Percent"
+                                @input="usePreTaxMode = true">
+                        </label>
+                    </div>
+                    <small x-show="usePreTaxMode && preTaxIncome > 0" x-text="postTaxIncomeText"></small>
+
+                    <label>
+                        <strong>OR</strong> Annual Post-Tax Income (overrides above)
+                        <input type="number" x-model.number="postTaxIncomeOverride" min="0" step="1000"
+                            placeholder="Leave blank to use pre-tax calculation" aria-label="Dollar amount"
+                            @input="usePreTaxMode = false">
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Current Financial Position</legend>
+                    <div class="grid">
+                        <label>
+                            Already Saved
+                            <input type="number" x-model.number="alreadySaved" min="0" step="1000" placeholder="0"
+                                aria-label="Dollar amount">
+                        </label>
+                        <label>
+                            Current Debt
+                            <input type="number" x-model.number="currentDebt" min="0" step="1000" placeholder="0"
+                                aria-label="Dollar amount">
+                        </label>
+                    </div>
+                    <small x-show="calculatedPostTaxIncome > 0 && (alreadySaved > 0 || currentDebt > 0)">
+                        Net position: <strong x-text="netPositionText"></strong>
+                    </small>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Retirement Assumptions</legend>
+                    <div class="grid">
+                        <label>
+                            Expected Rate of Return
+                            <input type="number" x-model.number="rateOfReturnPercent" min="0" max="20" step="0.1"
+                                placeholder="5" aria-label="Percent">
+                        </label>
+                        <label>
+                            Retirement Multiplier
+                            <input type="number" x-model.number="retirementMultiplier" min="1" max="50" step="1"
+                                placeholder="25" aria-label="Times">
+                        </label>
+                    </div>
+                    <small>Based on the 4% rule (25x = 4% withdrawal rate)</small>
+                </fieldset>
+            </details>
+
+            <footer>
+                <h2 x-text="yearsText"></h2>
+                <p x-show="isValid" x-text="explanation"></p>
+                <p x-show="!isValid" style="color: var(--pico-del-color);">
+                    Please enter a savings rate between 1% and 100%
+                </p>
+            </footer>
+        </article>
+    </main>
+
+    <script>
+        function retirementCalculator() {
+            return {
+                // Primary input
+                savingsRatePercent: 15,
+
+                // Income inputs (optional, for dollar-based calculations)
+                preTaxIncome: null,
+                taxRatePercent: null,
+                postTaxIncomeOverride: null,
+                usePreTaxMode: true,
+
+                // Financial position (optional)
+                alreadySaved: 0,
+                currentDebt: 0,
+
+                // Retirement assumptions
+                rateOfReturnPercent: 5,
+                retirementMultiplier: 25,
+
+                // Tax estimation based on 2024 federal + approximate state (simplified)
+                estimateTaxRate(income) {
+                    if (!income || income <= 0) return 25; // Default guess
+
+                    // Simplified progressive tax (federal + state estimate)
+                    if (income <= 11000) return 10;
+                    if (income <= 44725) return 15;
+                    if (income <= 95375) return 22;
+                    if (income <= 182100) return 26;
+                    if (income <= 231250) return 30;
+                    if (income <= 578125) return 35;
+                    return 40;
+                },
+
+                get estimatedTaxRate() {
+                    if (this.taxRatePercent) return this.taxRatePercent;
+                    return this.estimateTaxRate(this.preTaxIncome || 0);
+                },
+
+                get calculatedPostTaxIncome() {
+                    if (!this.usePreTaxMode && this.postTaxIncomeOverride) {
+                        return this.postTaxIncomeOverride;
+                    }
+
+                    if (this.preTaxIncome && this.preTaxIncome > 0) {
+                        const taxRate = this.estimatedTaxRate / 100;
+                        return this.preTaxIncome * (1 - taxRate);
+                    }
+
+                    return 0;
+                },
+
+                get postTaxIncomeText() {
+                    const postTax = this.calculatedPostTaxIncome;
+                    if (postTax > 0) {
+                        return `Post-tax income: $${postTax.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+                    }
+                    return '';
+                },
+
+                get savingsRate() {
+                    return (this.savingsRatePercent || 0) / 100;
+                },
+
+                get existingSavingsMultiplier() {
+                    if (!this.calculatedPostTaxIncome) return 0;
+                    const netPosition = (this.alreadySaved || 0) - (this.currentDebt || 0);
+                    return netPosition / this.calculatedPostTaxIncome;
+                },
+
+                get netPositionText() {
+                    const netPosition = (this.alreadySaved || 0) - (this.currentDebt || 0);
+                    const multiplier = this.existingSavingsMultiplier;
+                    const absMultiplier = Math.abs(multiplier).toFixed(2);
+
+                    if (netPosition >= 0) {
+                        return `${absMultiplier}x your annual post-tax income saved`;
+                    } else {
+                        return `${absMultiplier}x your annual post-tax income in debt`;
+                    }
+                },
+
+                get rateOfReturn() {
+                    return (this.rateOfReturnPercent || 5) / 100;
+                },
+
+                get isValid() {
+                    return this.savingsRatePercent > 0 && this.savingsRatePercent <= 100;
+                },
+
+                get yearsToRetirement() {
+                    if (!this.isValid) return 0;
+
+                    const S = this.savingsRate;
+                    const r = this.rateOfReturn;
+                    const x = this.retirementMultiplier || 25;
+                    const existing = this.existingSavingsMultiplier;
+
+                    // Target: x times annual spending = x * (1 - S) times annual income
+                    const target = x * (1 - S);
+
+                    // Already saved (in terms of annual income)
+                    const alreadySaved = existing;
+
+                    // Still need to save
+                    const stillNeeded = target - alreadySaved;
+
+                    // If already at or past target
+                    if (stillNeeded <= 0) return 0;
+
+                    // Years needed with compound interest
+                    // FV = PV(1+r)^t + PMT * ((1+r)^t - 1) / r
+                    // target = existing(1+r)^t + S * ((1+r)^t - 1) / r
+                    // Rearranging: t = ln((target * r + S) / (existing * r + S)) / ln(1 + r)
+
+                    const numerator = Math.log((target * r + S) / (existing * r + S));
+                    const denominator = Math.log(1 + r);
+
+                    return numerator / denominator;
+                },
+
+                get yearsText() {
+                    if (!this.isValid) return 'Enter a savings rate between 1% and 100%';
+
+                    const years = this.yearsToRetirement;
+                    const roundedYears = Math.round(years * 10) / 10;
+
+                    return `${roundedYears} years until retirement`;
+                },
+
+                get explanation() {
+                    if (!this.isValid) return '';
+
+                    const years = Math.round(this.yearsToRetirement);
+                    const currentYear = new Date().getFullYear();
+                    const retirementYear = currentYear + years;
+
+                    if (years === 0) {
+                        return `You've already saved enough to retire!`;
+                    }
+
+                    let message = `Saving ${this.savingsRatePercent}% of your income`;
+
+                    if (this.existingSavingsMultiplier && Math.abs(this.existingSavingsMultiplier) > 0.01) {
+                        const absMultiplier = Math.abs(this.existingSavingsMultiplier).toFixed(1);
+                        const savedDesc = this.existingSavingsMultiplier > 0
+                            ? `with ${absMultiplier}x your income already saved`
+                            : `starting ${absMultiplier}x your income in debt`;
+                        message += `, ${savedDesc}`;
+                    }
+
+                    message += `, you could retire around ${retirementYear}`;
+
+                    return message;
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
