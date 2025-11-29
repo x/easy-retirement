@@ -7,7 +7,9 @@
     <title>Easy Retirement Calculator</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <style>
-        [x-cloak] { display: none !important; }
+        [x-cloak] {
+            display: none !important;
+        }
 
         /* Input prefix/suffix styling */
         .input-group {
@@ -37,7 +39,7 @@
         }
 
         /* Move suffix left when validation icon is present */
-        .input-group input[aria-invalid] ~ .suffix {
+        .input-group input[aria-invalid]~.suffix {
             right: calc(var(--pico-form-element-spacing-horizontal) + 1.75rem);
         }
 
@@ -69,234 +71,257 @@
         <h1>Easy Retirement Calculator</h1>
         <p>Calculate your years until retirement based on your savings rate</p>
         <grid>
-        <article>
+            <article>
 
-            <div>
-                <label for="savings-rate">
-                    Savings Rate
-                    <div class="input-group has-suffix">
-                        <input type="number" id="savings-rate" x-model.number.debounce.150ms="savingsRatePercent"
-                            min="1" max="100" step="1" placeholder="15" aria-label="Percent"
-                            :aria-invalid="savingsRatePercent > 0 && savingsRatePercent <= 100 ? 'false' : 'true'">
-                        <span class="suffix">%</span>
-                    </div>
-                </label>
-                <small>What percentage of your post-tax income do you save?</small>
-            </div>
-
-            <details>
-            <summary style="margin-top: 1rem">Advanced Settings</summary>
-
-            <div class="grid" style="margin-bottom: 1rem">
-                <label>
-                    <input type="checkbox" role="switch" x-model="showLeanFatFire">
-                    Lean/Fat FIRE
-                </label>
-                <label>
-                    <input type="checkbox" role="switch" x-model="showCoastFire" @change="if(showCoastFire) { $refs.ageDetails.open = true; }">
-                    CoastFIRE
-                </label>
-            </div>
-
-            <details>
-                <summary>Current Finances</summary>
-
-                <fieldset>
-                    <legend>Income (for dollar-based calculations)</legend>
-                    <div class="grid">
-                        <label>
-                            Annual Pre-Tax Income
-                            <div class="input-group has-prefix">
-                                <span class="prefix">$</span>
-                                <input type="text"
-                                    x-model="preTaxIncome"
-                                    @input="preTaxIncome = parseNumberInput($el.value); $el.value = formatNumberInput(preTaxIncome)"
-                                    @blur="$el.value = formatNumberInput(preTaxIncome)"
-                                    placeholder="100,000"
-                                    aria-label="Dollar amount">
-                            </div>
-                        </label>
-                        <label>
-                            Tax Rate
-                            <div class="input-group has-suffix">
-                                <input type="number" x-model.number.debounce.150ms="taxRatePercent" min="0" max="100"
-                                    step="0.1" :placeholder="estimatedTaxRate.toFixed(1)" aria-label="Percent">
-                                <span class="suffix">%</span>
-                            </div>
-                        </label>
-                    </div>
-
-                    <label>
-                        <input type="checkbox" x-model="filingJointly">
-                        Filing jointly (married)
+                <div>
+                    <label for="savings-rate">
+                        Savings Rate
+                        <div class="input-group has-suffix">
+                            <input type="number" id="savings-rate" x-model.number.debounce.150ms="savingsRatePercent"
+                                min="1" max="100" step="1" placeholder="15" aria-label="Percent"
+                                :aria-invalid="savingsRatePercent > 0 && savingsRatePercent <= 100 ? 'false' : 'true'">
+                            <span class="suffix">%</span>
+                        </div>
                     </label>
-
-                    <small x-show="preTaxIncome > 0" x-text="postTaxIncomeText"></small>
-                </fieldset>
-
-                <fieldset>
-                    <legend>Savings & Debt</legend>
-                    <div class="grid">
-                        <label>
-                            Already Saved
-                            <div class="input-group has-prefix">
-                                <span class="prefix">$</span>
-                                <input type="text"
-                                    x-model="alreadySaved"
-                                    @input="alreadySaved = parseNumberInput($el.value) || 0; $el.value = formatNumberInput(alreadySaved)"
-                                    @blur="$el.value = formatNumberInput(alreadySaved)"
-                                    placeholder="0"
-                                    aria-label="Dollar amount">
-                            </div>
-                        </label>
-                        <label>
-                            Current Debt
-                            <div class="input-group has-prefix">
-                                <span class="prefix">$</span>
-                                <input type="text"
-                                    x-model="currentDebt"
-                                    @input="currentDebt = parseNumberInput($el.value) || 0; $el.value = formatNumberInput(currentDebt)"
-                                    @blur="$el.value = formatNumberInput(currentDebt)"
-                                    placeholder="0"
-                                    aria-label="Dollar amount">
-                            </div>
-                        </label>
-                    </div>
-                    <small x-show="calculatedPostTaxIncome > 0 && (alreadySaved > 0 || currentDebt > 0)">
-                        Net position: <strong x-text="netPositionText"></strong>
-                    </small>
-                    <small x-show="calculatedPostTaxIncome === 0 && (alreadySaved > 0 || currentDebt > 0)"
-                        style="color: var(--pico-del-color);">
-                        Enter your income above to see position as a multiple of annual income
-                    </small>
-                </fieldset>
-            </details>
-
-            <details x-ref="ageDetails">
-                <summary>Current Age</summary>
-                <div class="grid">
-                    <label>
-                        Current Age
-                        <input type="number" x-model.number.debounce.150ms="currentAge" min="18" max="100"
-                            step="1" placeholder="30" aria-label="Years">
-                    </label>
-                    <label>
-                        Retirement Age
-                        <input type="number" x-model.number.debounce.150ms="retirementAge" min="18" max="100"
-                            step="1" placeholder="65" aria-label="Years">
-                    </label>
-                </div>
-                <small x-show="showCoastFire && currentAge && retirementAge">
-                    CoastFIRE: Stop saving at <strong x-text="coastFireTarget.toFixed(1) + 'x'"></strong> annual spending and let compound growth reach <strong x-text="retirementMultiplier + 'x'"></strong> by age <span x-text="retirementAge"></span>
-                </small>
-            </details>
-
-            <details>
-                <summary>Assumptions</summary>
-                <label>
-                    FIRE Goal
-                    <select x-model="fireStrategy" @change="updateMultiplierFromStrategy()">
-                        <option value="lean">LeanFIRE (22x / 4.5% withdrawal)</option>
-                        <option value="standard" selected>Standard FIRE (25x / 4% withdrawal)</option>
-                        <option value="fat">FatFIRE (33x / 3% withdrawal)</option>
-                    </select>
-                </label>
-                <label>
-                    Expected Rate of Return
-                    <div class="input-group has-suffix">
-                        <input type="number" x-model.number.debounce.150ms="rateOfReturnPercent" min="0"
-                            max="20" step="0.1" placeholder="5" aria-label="Percent">
-                        <span class="suffix">%</span>
-                    </div>
-                </label>
-                <small>
-                    <span x-show="fireStrategy === 'lean'">Lower spending lifestyle, 4.5% withdrawal rate</span>
-                    <span x-show="fireStrategy === 'standard'">Based on the 4% rule (25x = 4% withdrawal rate)</span>
-                    <span x-show="fireStrategy === 'fat'">Higher spending with more buffer, 3% withdrawal rate</span>
-                </small>
-            </details>
-            </details>
-
-            <footer>
-                <h2 x-text="yearsText"></h2>
-                <p x-show="isValid" x-html="explanation" style="margin-bottom: 0;"></p>
-                <p x-show="isValid && showCoastFire && currentAge && retirementAge" x-html="coastFireExplanation"></p>
-                <p x-show="!isValid" style="color: var(--pico-del-color);">
-                    Please enter a savings rate between 1% and 100%
-                </p>
-
-                <div x-show="isValid" style="margin-top: 2rem;">
-                    <canvas x-ref="retirementChart"></canvas>
+                    <small>What percentage of your post-tax income do you save?</small>
                 </div>
 
-                <table x-show="isValid && showLeanFatFire" style="margin-top: 2rem;">
-                    <caption>FIRE Strategy Comparison</caption>
-                    <thead>
-                        <tr>
-                            <th>Strategy</th>
-                            <th>Withdrawal</th>
-                            <th x-show="showCoastFire && currentAge && retirementAge">Coast Target</th>
-                            <th x-show="showCoastFire && currentAge && retirementAge">Years to Coast</th>
-                            <th>Retire Target</th>
-                            <th>Years to Retire</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr :style="fireStrategy === 'lean' ? 'font-weight: bold;' : ''">
-                            <td>LeanFIRE</td>
-                            <td>
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(calculatedPostTaxIncome * (1 - savingsRate)) + ' (4.5%)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0">4.5%</span>
-                            </td>
-                            <td x-show="showCoastFire && currentAge && retirementAge">
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(coastTargetFor(22) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(22).toFixed(1) + 'x)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0" x-text="coastTargetFor(22).toFixed(1) + 'x'"></span>
-                            </td>
-                            <td x-show="showCoastFire && currentAge && retirementAge" x-text="coastGoalMetFor(22) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(22)))"></td>
-                            <td>
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(22 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (22x)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0">22x</span>
-                            </td>
-                            <td x-text="Math.round(yearsToTarget(22)) || 'Met ✓'"></td>
-                        </tr>
-                        <tr :style="fireStrategy === 'standard' ? 'font-weight: bold;' : ''">
-                            <td>Standard FIRE</td>
-                            <td>
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(calculatedPostTaxIncome * (1 - savingsRate)) + ' (4.0%)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0">4.0%</span>
-                            </td>
-                            <td x-show="showCoastFire && currentAge && retirementAge">
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(coastTargetFor(25) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(25).toFixed(1) + 'x)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0" x-text="coastTargetFor(25).toFixed(1) + 'x'"></span>
-                            </td>
-                            <td x-show="showCoastFire && currentAge && retirementAge" x-text="coastGoalMetFor(25) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(25)))"></td>
-                            <td>
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(25 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (25x)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0">25x</span>
-                            </td>
-                            <td x-text="Math.round(yearsToTarget(25)) || 'Met ✓'"></td>
-                        </tr>
-                        <tr :style="fireStrategy === 'fat' ? 'font-weight: bold;' : ''">
-                            <td>FatFIRE</td>
-                            <td>
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(calculatedPostTaxIncome * (1 - savingsRate)) + ' (3.0%)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0">3.0%</span>
-                            </td>
-                            <td x-show="showCoastFire && currentAge && retirementAge">
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(coastTargetFor(33) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(33).toFixed(1) + 'x)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0" x-text="coastTargetFor(33).toFixed(1) + 'x'"></span>
-                            </td>
-                            <td x-show="showCoastFire && currentAge && retirementAge" x-text="coastGoalMetFor(33) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(33)))"></td>
-                            <td>
-                                <span x-show="calculatedPostTaxIncome > 0" x-text="formatMoney(33 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (33x)'"></span>
-                                <span x-show="calculatedPostTaxIncome === 0">33x</span>
-                            </td>
-                            <td x-text="Math.round(yearsToTarget(33)) || 'Met ✓'"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </footer>
-        </article>
+                <details>
+                    <summary style="margin-top: 1rem">Advanced Settings</summary>
+
+                    <div class="grid" style="margin-bottom: 1rem">
+                        <label>
+                            <input type="checkbox" role="switch" x-model="showLeanFatFire">
+                            Lean/Fat FIRE
+                        </label>
+                        <label>
+                            <input type="checkbox" role="switch" x-model="showCoastFire"
+                                @change="if(showCoastFire) { $refs.ageDetails.open = true; }">
+                            CoastFIRE
+                        </label>
+                    </div>
+
+
+                    <fieldset>
+                        <legend>Income (for dollar-based calculations)</legend>
+                        <div class="grid">
+                            <label>
+                                Annual Pre-Tax Income
+                                <div class="input-group has-prefix">
+                                    <span class="prefix">$</span>
+                                    <input type="text" x-model="preTaxIncome"
+                                        @input="preTaxIncome = parseNumberInput($el.value); $el.value = formatNumberInput(preTaxIncome)"
+                                        @blur="$el.value = formatNumberInput(preTaxIncome)" placeholder="100,000"
+                                        aria-label="Dollar amount">
+                                </div>
+                            </label>
+                            <label>
+                                Tax Rate
+                                <div class="input-group has-suffix">
+                                    <input type="number" x-model.number.debounce.150ms="taxRatePercent" min="0"
+                                        max="100" step="0.1" :placeholder="estimatedTaxRate.toFixed(1)"
+                                        aria-label="Percent">
+                                    <span class="suffix">%</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <label>
+                            <input type="checkbox" role="switch" x-model="filingJointly">
+                            Filing jointly (married)
+                        </label>
+
+                        <small x-show="preTaxIncome > 0" x-text="postTaxIncomeText"></small>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Savings & Debt</legend>
+                        <div class="grid">
+                            <label>
+                                Already Saved
+                                <div class="input-group has-prefix">
+                                    <span class="prefix">$</span>
+                                    <input type="text" x-model="alreadySaved"
+                                        @input="alreadySaved = parseNumberInput($el.value) || 0; $el.value = formatNumberInput(alreadySaved)"
+                                        @blur="$el.value = formatNumberInput(alreadySaved)" placeholder="0"
+                                        aria-label="Dollar amount">
+                                </div>
+                            </label>
+                            <label>
+                                Current Debt
+                                <div class="input-group has-prefix">
+                                    <span class="prefix">$</span>
+                                    <input type="text" x-model="currentDebt"
+                                        @input="currentDebt = parseNumberInput($el.value) || 0; $el.value = formatNumberInput(currentDebt)"
+                                        @blur="$el.value = formatNumberInput(currentDebt)" placeholder="0"
+                                        aria-label="Dollar amount">
+                                </div>
+                            </label>
+                        </div>
+                        <small x-show="calculatedPostTaxIncome > 0 && (alreadySaved > 0 || currentDebt > 0)">
+                            Net position: <strong x-text="netPositionText"></strong>
+                        </small>
+                        <small x-show="calculatedPostTaxIncome === 0 && (alreadySaved > 0 || currentDebt > 0)"
+                            style="color: var(--pico-del-color);">
+                            Enter your income above to see position as a multiple of annual income
+                        </small>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Timeline</legend>
+                        <div class="grid">
+                            <label>
+                                Current Age
+                                <input type="number" x-model.number.debounce.150ms="currentAge" min="18" max="100"
+                                    step="1" placeholder="30" aria-label="Years">
+                            </label>
+                            <label>
+                                Retirement Age
+                                <input type="number" x-model.number.debounce.150ms="retirementAge" min="18" max="100"
+                                    step="1" placeholder="65" aria-label="Years">
+                            </label>
+                        </div>
+                        <small x-show="showCoastFire && currentAge && retirementAge">
+                            CoastFIRE: Stop saving at <strong x-text="coastFireTarget.toFixed(1) + 'x'"></strong> annual
+                            spending and let compound growth reach <strong x-text="retirementMultiplier + 'x'"></strong>
+                            by age <span x-text="retirementAge"></span>
+                        </small>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Assumptions</legend>
+                        <div class="grid">
+                            <div>
+                                <label>
+                                    Retirement Goal
+                                    <select x-model="fireStrategy" @change="updateMultiplierFromStrategy()"
+                                        style="margin-top: 0rem;">
+                                        <option value="lean">LeanFIRE (22x / 4.5%)</option>
+                                        <option value="standard" selected>Standard FIRE (25x / 4%)</option>
+                                        <option value="fat">FatFIRE (33x / 3%)</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    Expected Rate of Return
+                                    <div class="input-group has-suffix">
+                                        <input type="number" x-model.number.debounce.150ms="rateOfReturnPercent" min="0"
+                                            max="20" step="0.1" placeholder="5" aria-label="Percent">
+                                        <span class="suffix">%</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <small>
+                            <span x-show="fireStrategy === 'lean'">Lower spending lifestyle, 4.5% withdrawal rate</span>
+                            <span x-show="fireStrategy === 'standard'">Based on the 4% rule (25x = 4% withdrawal
+                                rate)</span>
+                            <span x-show="fireStrategy === 'fat'">Higher spending with more buffer, 3% withdrawal
+                                rate</span>
+                        </small>
+                    </fieldset>
+                </details>
+
+                <footer>
+                    <h2 x-text="yearsText"></h2>
+                    <p x-show="isValid" x-html="explanation" style="margin-bottom: 0;"></p>
+                    <p x-show="isValid && showCoastFire && currentAge && retirementAge" x-html="coastFireExplanation">
+                    </p>
+                    <p x-show="!isValid" style="color: var(--pico-del-color);">
+                        Please enter a savings rate between 1% and 100%
+                    </p>
+
+                    <div x-show="isValid" style="margin-top: 2rem;">
+                        <canvas x-ref="retirementChart"></canvas>
+                    </div>
+
+                    <table x-show="isValid && showLeanFatFire" style="margin-top: 2rem;">
+                        <caption>FIRE Strategy Comparison</caption>
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>Withdrawal</th>
+                                <th x-show="showCoastFire && currentAge && retirementAge">Coast Target</th>
+                                <th x-show="showCoastFire && currentAge && retirementAge">Years to Coast</th>
+                                <th>Retire Target</th>
+                                <th>Years to Retire</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr :style="fireStrategy === 'lean' ? 'font-weight: bold;' : ''">
+                                <td>LeanFIRE</td>
+                                <td>
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(calculatedPostTaxIncome * (1 - savingsRate)) + ' (4.5%)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">4.5%</span>
+                                </td>
+                                <td x-show="showCoastFire && currentAge && retirementAge">
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(coastTargetFor(22) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(22).toFixed(1) + 'x)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0"
+                                        x-text="coastTargetFor(22).toFixed(1) + 'x'"></span>
+                                </td>
+                                <td x-show="showCoastFire && currentAge && retirementAge"
+                                    x-text="coastGoalMetFor(22) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(22)))">
+                                </td>
+                                <td>
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(22 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (22x)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">22x</span>
+                                </td>
+                                <td x-text="Math.round(yearsToTarget(22)) || 'Met ✓'"></td>
+                            </tr>
+                            <tr :style="fireStrategy === 'standard' ? 'font-weight: bold;' : ''">
+                                <td>Standard FIRE</td>
+                                <td>
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(calculatedPostTaxIncome * (1 - savingsRate)) + ' (4.0%)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">4.0%</span>
+                                </td>
+                                <td x-show="showCoastFire && currentAge && retirementAge">
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(coastTargetFor(25) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(25).toFixed(1) + 'x)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0"
+                                        x-text="coastTargetFor(25).toFixed(1) + 'x'"></span>
+                                </td>
+                                <td x-show="showCoastFire && currentAge && retirementAge"
+                                    x-text="coastGoalMetFor(25) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(25)))">
+                                </td>
+                                <td>
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(25 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (25x)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">25x</span>
+                                </td>
+                                <td x-text="Math.round(yearsToTarget(25)) || 'Met ✓'"></td>
+                            </tr>
+                            <tr :style="fireStrategy === 'fat' ? 'font-weight: bold;' : ''">
+                                <td>FatFIRE</td>
+                                <td>
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(calculatedPostTaxIncome * (1 - savingsRate)) + ' (3.0%)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">3.0%</span>
+                                </td>
+                                <td x-show="showCoastFire && currentAge && retirementAge">
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(coastTargetFor(33) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(33).toFixed(1) + 'x)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0"
+                                        x-text="coastTargetFor(33).toFixed(1) + 'x'"></span>
+                                </td>
+                                <td x-show="showCoastFire && currentAge && retirementAge"
+                                    x-text="coastGoalMetFor(33) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(33)))">
+                                </td>
+                                <td>
+                                    <span x-show="calculatedPostTaxIncome > 0"
+                                        x-text="formatMoney(33 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (33x)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">33x</span>
+                                </td>
+                                <td x-text="Math.round(yearsToTarget(33)) || 'Met ✓'"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </footer>
+            </article>
     </main>
 
     <script>
