@@ -93,10 +93,39 @@
                         style="color: var(--pico-del-color);">
                         Enter your income above to see position as a multiple of annual income
                     </small>
+
+                    <label style="margin-top: 1rem;">
+                        <input type="checkbox" x-model="showCoastFire">
+                        Show CoastFIRE analysis
+                    </label>
+                    <div x-show="showCoastFire" class="grid" style="margin-top: 0.5rem;">
+                        <label>
+                            Current Age
+                            <input type="number" x-model.number.debounce.150ms="currentAge" min="18" max="100"
+                                step="1" placeholder="30" aria-label="Years">
+                        </label>
+                        <label>
+                            Retirement Age
+                            <input type="number" x-model.number.debounce.150ms="retirementAge" min="18" max="100"
+                                step="1" placeholder="65" aria-label="Years">
+                        </label>
+                    </div>
+                    <small x-show="showCoastFire && currentAge && retirementAge">
+                        To reach <strong x-text="retirementMultiplier + 'x'"></strong> by age <span x-text="retirementAge"></span> through growth alone, you need <strong x-text="coastFireTarget.toFixed(1) + 'x'"></strong> annual spending saved today
+                    </small>
                 </fieldset>
 
                 <fieldset>
                     <legend>Retirement Assumptions</legend>
+                    <label>
+                        FIRE Strategy
+                        <select x-model="fireStrategy" @change="updateMultiplierFromStrategy()">
+                            <option value="lean">LeanFIRE (22x / 4.5% withdrawal)</option>
+                            <option value="standard" selected>Standard FIRE (25x / 4% withdrawal)</option>
+                            <option value="fat">FatFIRE (33x / 3% withdrawal)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </label>
                     <div class="grid">
                         <label>
                             Expected Rate of Return
@@ -110,12 +139,21 @@
                             Retirement Multiplier
                             <div class="input-group has-suffix">
                                 <input type="number" x-model.number.debounce.150ms="retirementMultiplier" min="1"
-                                    max="50" step="1" placeholder="25" aria-label="Times">
+                                    max="50" step="1" placeholder="25" aria-label="Times"
+                                    :disabled="fireStrategy !== 'custom'"
+                                    @input="fireStrategy = 'custom'">
                                 <span class="suffix">×</span>
                             </div>
                         </label>
                     </div>
-                    <small>Based on the 4% rule (25x = 4% withdrawal rate)</small>
+                    <small x-show="fireStrategy !== 'custom'">
+                        <span x-show="fireStrategy === 'lean'">Lower spending lifestyle, 4.5% withdrawal rate</span>
+                        <span x-show="fireStrategy === 'standard'">Based on the 4% rule (25x = 4% withdrawal rate)</span>
+                        <span x-show="fireStrategy === 'fat'">Higher spending with more buffer, 3% withdrawal rate</span>
+                    </small>
+                    <small x-show="fireStrategy === 'custom'">
+                        Custom multiplier: <strong x-text="(100 / retirementMultiplier).toFixed(2) + '%'"></strong> withdrawal rate
+                    </small>
                 </fieldset>
             </details>
 
@@ -147,9 +185,46 @@
                 alreadySaved: 0,
                 currentDebt: 0,
 
+                // CoastFIRE analysis
+                showCoastFire: false,
+                currentAge: null,
+                retirementAge: 65,
+
                 // Retirement assumptions
+                fireStrategy: 'standard',
                 rateOfReturnPercent: 5,
                 retirementMultiplier: 25,
+
+                // Chart instance
+                chart: null,
+
+                updateMultiplierFromStrategy() {
+                    switch (this.fireStrategy) {
+                        case 'lean':
+                            this.retirementMultiplier = 22;
+                            break;
+                        case 'standard':
+                            this.retirementMultiplier = 25;
+                            break;
+                        case 'fat':
+                            this.retirementMultiplier = 33;
+                            break;
+                        // 'custom' doesn't change the multiplier
+                    }
+                },
+
+                get yearsUntilRetirement() {
+                    if (!this.currentAge || !this.retirementAge) return 30; // Default
+                    return Math.max(0, this.retirementAge - this.currentAge);
+                },
+
+                get coastFireTarget() {
+                    // CoastFIRE: amount needed TODAY so growth alone reaches current FIRE target by retirement
+                    const fireTarget = this.retirementMultiplier || 25;
+                    const r = this.rateOfReturn;
+                    const years = this.yearsUntilRetirement;
+                    return fireTarget / Math.pow(1 + r, years);
+                },
 
                 // Tax estimation based on 2024 federal + approximate state (simplified)
                 estimateTaxRate(income) {
@@ -256,7 +331,12 @@
                     const numerator = Math.log((target * r + S) / (existing * r + S));
                     const denominator = Math.log(1 + r);
 
-                    return numerator / denominator;
+                    const years = numerator / denominator;
+
+                    // Guard against invalid results
+                    if (!isFinite(years) || years < 0) return 0;
+
+                    return years;
                 },
 
                 get yearsText() {
@@ -300,97 +380,368 @@
                     const x = this.retirementMultiplier || 25;
                     const existing = this.existingSavingsMultiplier;
 
-                    // Target is simply the retirement multiplier (25x annual spending)
+                    // Target is simply the retirement multiplier
                     const target = x;
 
-                    const maxYears = Math.ceil(this.yearsToRetirement) + 5;
+                    // CoastFIRE: Amount needed today to coast to FIRE target by retirement
+                    const coastFire = this.coastFireTarget;
+
+                    // Chart should extend to retirement age if CoastFIRE is enabled
+                    let maxYears = Math.max(5, Math.ceil(this.yearsToRetirement) + 5);
+                    if (this.showCoastFire && this.currentAge && this.retirementAge) {
+                        maxYears = Math.max(maxYears, this.yearsUntilRetirement + 5);
+                    }
+
+                    // Ensure maxYears is valid
+                    if (!isFinite(maxYears) || maxYears < 1) {
+                        maxYears = 30; // Default fallback
+                    }
                     const years = [];
                     const savings = [];
+                    const coastingSavings = [];
 
                     for (let year = 0; year <= maxYears; year++) {
                         years.push(year);
 
-                        // Calculate savings at this year
-                        // Existing savings grow with compound interest: existing * (1+r)^year
-                        // Annual savings accumulate: S * ((1+r)^year - 1) / r
+                        // Main savings curve (continuing to save)
                         const compoundedExisting = existing * Math.pow(1 + r, year);
                         const accumulatedSavings = S * (Math.pow(1 + r, year) - 1) / r;
                         const totalSavings = compoundedExisting + accumulatedSavings;
-
-                        // Convert to multiples of annual spending
                         const multiplesOfSpending = totalSavings / (1 - S);
                         savings.push(multiplesOfSpending);
+
+                        // CoastFIRE curve (stop saving now, only compound growth)
+                        if (this.showCoastFire) {
+                            const coastingTotal = existing * Math.pow(1 + r, year);
+                            const coastingMultiples = coastingTotal / (1 - S);
+                            coastingSavings.push(coastingMultiples);
+                        }
                     }
 
-                    return { years, savings, target };
+                    return { years, savings, coastingSavings, target, coastFire };
+                },
+
+                updateChart(years, savings, coastingSavings, target, coastFire) {
+                    if (!this.chart) return;
+
+                    try {
+                        // Update labels (x-axis)
+                        this.chart.data.labels = years;
+
+                        // Update main savings dataset
+                        this.chart.data.datasets[0].data = savings;
+
+                        // Update or add/remove coasting dataset
+                        if (this.showCoastFire && coastingSavings.length > 0) {
+                            if (this.chart.data.datasets.length > 1) {
+                                // Update existing coasting dataset
+                                this.chart.data.datasets[1].data = coastingSavings;
+                            } else {
+                                // Add coasting dataset
+                                this.chart.data.datasets.push({
+                                    label: 'Coast (Stop Saving)',
+                                    data: coastingSavings,
+                                    borderColor: 'rgb(255, 159, 64)',
+                                    backgroundColor: 'rgba(255, 159, 64, 0.05)',
+                                    tension: 0.1,
+                                    fill: false,
+                                    borderDash: [5, 5],
+                                    order: 2
+                                });
+                            }
+                        } else {
+                            // Remove coasting dataset if it exists
+                            if (this.chart.data.datasets.length > 1) {
+                                this.chart.data.datasets.pop();
+                            }
+                        }
+
+                        // Update target label
+                        let targetLabel = '';
+                        switch (this.fireStrategy) {
+                            case 'lean':
+                                targetLabel = 'LeanFIRE';
+                                break;
+                            case 'standard':
+                                targetLabel = 'FIRE';
+                                break;
+                            case 'fat':
+                                targetLabel = 'FatFIRE';
+                                break;
+                            case 'custom':
+                                targetLabel = 'Target';
+                                break;
+                        }
+
+                        // Update annotations
+                        this.chart.options.plugins.annotation.annotations.mainTarget.yMin = target;
+                        this.chart.options.plugins.annotation.annotations.mainTarget.yMax = target;
+                        this.chart.options.plugins.annotation.annotations.mainTarget.label.content = `${targetLabel}: ${target.toFixed(1)}x`;
+
+                        // Update CoastFIRE annotation
+                        if (this.showCoastFire) {
+                            if (!this.chart.options.plugins.annotation.annotations.coastFire) {
+                                this.chart.options.plugins.annotation.annotations.coastFire = {
+                                    type: 'line',
+                                    yMin: coastFire,
+                                    yMax: coastFire,
+                                    borderColor: 'rgb(54, 162, 235)',
+                                    borderWidth: 1.5,
+                                    borderDash: [8, 4],
+                                    label: {
+                                        display: true,
+                                        content: `CoastFIRE: ${coastFire.toFixed(1)}x`,
+                                        position: 'start',
+                                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                        color: '#fff',
+                                        font: { size: 11 }
+                                    }
+                                };
+                            } else {
+                                this.chart.options.plugins.annotation.annotations.coastFire.yMin = coastFire;
+                                this.chart.options.plugins.annotation.annotations.coastFire.yMax = coastFire;
+                                this.chart.options.plugins.annotation.annotations.coastFire.label.content = `CoastFIRE: ${coastFire.toFixed(1)}x`;
+                            }
+                        } else {
+                            delete this.chart.options.plugins.annotation.annotations.coastFire;
+                        }
+
+                        // Update legend visibility
+                        this.chart.options.plugins.legend.display = this.showCoastFire;
+
+                        // Trigger update with animation disabled
+                        this.chart.update({
+                            duration: 0
+                        });
+                    } catch (error) {
+                        console.error('Chart update error:', error);
+                        // If update fails, destroy chart and let next call recreate it
+                        if (this.chart) {
+                            this.chart.destroy();
+                            this.chart = null;
+                        }
+                    }
                 },
 
                 initChart() {
                     if (!this.$refs.retirementChart) return;
 
-                    const ctx = this.$refs.retirementChart.getContext('2d');
-                    const { years, savings, target } = this.generateChartData();
+                    try {
+                        // Destroy existing chart completely first
+                        if (this.chart) {
+                            this.chart.destroy();
+                            this.chart = null;
+                        }
 
-                    if (this.chart) {
-                        this.chart.destroy();
-                    }
+                        // Verify canvas is still valid
+                        if (!this.$refs.retirementChart || !this.$refs.retirementChart.getContext) {
+                            console.warn('Canvas element not available');
+                            return;
+                        }
 
-                    this.chart = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: years,
-                            datasets: [{
-                                label: 'Savings (multiples of annual spending)',
-                                data: savings,
-                                borderColor: 'rgb(75, 192, 192)',
-                                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        const ctx = this.$refs.retirementChart.getContext('2d');
+                        if (!ctx) {
+                            console.warn('Cannot get canvas context');
+                            return;
+                        }
+
+                        const { years, savings, coastingSavings, target, coastFire } = this.generateChartData();
+
+                        // Determine which strategy label to show on the main target line
+                        let targetLabel = '';
+                        switch (this.fireStrategy) {
+                            case 'lean':
+                                targetLabel = 'LeanFIRE';
+                                break;
+                            case 'standard':
+                                targetLabel = 'FIRE';
+                                break;
+                            case 'fat':
+                                targetLabel = 'FatFIRE';
+                                break;
+                            case 'custom':
+                                targetLabel = 'Target';
+                                break;
+                        }
+
+                        // Build datasets
+                        const datasets = [{
+                            label: 'Continue Saving',
+                            data: savings,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            tension: 0.1,
+                            fill: true,
+                            order: 1
+                        }];
+
+                        // Add coasting curve if enabled
+                        if (this.showCoastFire && coastingSavings.length > 0) {
+                            datasets.push({
+                                label: 'Coast (Stop Saving)',
+                                data: coastingSavings,
+                                borderColor: 'rgb(255, 159, 64)',
+                                backgroundColor: 'rgba(255, 159, 64, 0.05)',
                                 tension: 0.1,
-                                fill: true
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            aspectRatio: 2,
-                            plugins: {
-                                legend: {
-                                    display: false
-                                },
-                                annotation: {
-                                    annotations: {
-                                        fireNumber: {
-                                            type: 'line',
-                                            yMin: target,
-                                            yMax: target,
-                                            borderColor: 'rgb(255, 99, 132)',
-                                            borderWidth: 2,
-                                            borderDash: [5, 5],
-                                            label: {
-                                                display: true,
-                                                content: `FIRE: ${target.toFixed(1)}x`,
-                                                position: 'end'
-                                            }
-                                        }
+                                fill: false,
+                                borderDash: [5, 5],
+                                order: 2
+                            });
+                        }
+
+                        // Build annotations - show all benchmarks except the currently selected strategy
+                        const annotations = {
+                            mainTarget: {
+                                type: 'line',
+                                yMin: target,
+                                yMax: target,
+                                borderColor: 'rgb(255, 99, 132)',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                label: {
+                                    display: true,
+                                    content: `${targetLabel}: ${target.toFixed(1)}x`,
+                                    position: 'end',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                                    color: '#fff',
+                                    font: {
+                                        size: 12,
+                                        weight: 'bold'
                                     }
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    title: {
-                                        display: true,
-                                        text: 'Years'
-                                    }
-                                },
-                                y: {
-                                    title: {
-                                        display: true,
-                                        text: 'Multiples of Annual Spending Saved'
-                                    },
-                                    beginAtZero: true
                                 }
                             }
+                        };
+
+                        // Show CoastFIRE benchmark when enabled
+                        if (this.showCoastFire) {
+                            annotations.coastFire = {
+                                type: 'line',
+                                yMin: coastFire,
+                                yMax: coastFire,
+                                borderColor: 'rgb(54, 162, 235)',
+                                borderWidth: 1.5,
+                                borderDash: [8, 4],
+                                label: {
+                                    display: true,
+                                    content: `CoastFIRE: ${coastFire.toFixed(1)}x`,
+                                    position: 'start',
+                                    backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                                    color: '#fff',
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            };
                         }
-                    });
+
+                        // Show LeanFIRE benchmark when not in lean mode
+                        if (this.fireStrategy !== 'lean') {
+                            annotations.leanFire = {
+                                type: 'line',
+                                yMin: 22,
+                                yMax: 22,
+                                borderColor: 'rgb(255, 206, 86)',
+                                borderWidth: 1.5,
+                                borderDash: [3, 3],
+                                label: {
+                                    display: true,
+                                    content: 'LeanFIRE: 22x',
+                                    position: 'start',
+                                    backgroundColor: 'rgba(255, 206, 86, 0.8)',
+                                    color: '#000',
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            };
+                        }
+
+                        // Show Standard FIRE benchmark when not in standard mode
+                        if (this.fireStrategy !== 'standard') {
+                            annotations.standardFire = {
+                                type: 'line',
+                                yMin: 25,
+                                yMax: 25,
+                                borderColor: 'rgb(100, 200, 100)',
+                                borderWidth: 1.5,
+                                borderDash: [3, 3],
+                                label: {
+                                    display: true,
+                                    content: 'Standard FIRE: 25x',
+                                    position: 'center',
+                                    backgroundColor: 'rgba(100, 200, 100, 0.8)',
+                                    color: '#fff',
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            };
+                        }
+
+                        // Show FatFIRE benchmark when not in fat mode
+                        if (this.fireStrategy !== 'fat') {
+                            annotations.fatFire = {
+                                type: 'line',
+                                yMin: 33,
+                                yMax: 33,
+                                borderColor: 'rgb(153, 102, 255)',
+                                borderWidth: 1.5,
+                                borderDash: [3, 3],
+                                label: {
+                                    display: true,
+                                    content: 'FatFIRE: 33x',
+                                    position: 'start',
+                                    backgroundColor: 'rgba(153, 102, 255, 0.8)',
+                                    color: '#fff',
+                                    font: {
+                                        size: 11
+                                    }
+                                }
+                            };
+                        }
+
+                        this.chart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: years,
+                                datasets: datasets
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: true,
+                                aspectRatio: 2,
+                                animation: false, // Disable animations to reduce race conditions
+                                plugins: {
+                                    legend: {
+                                        display: this.showCoastFire,
+                                        position: 'top'
+                                    },
+                                    annotation: {
+                                        annotations: annotations
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Years'
+                                        }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: 'Multiples of Annual Spending Saved'
+                                        },
+                                        beginAtZero: true
+                                    }
+                                }
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Chart initialization error:', error);
+                        // Ensure chart is null if creation failed
+                        this.chart = null;
+                    }
                 },
 
                 init() {
@@ -411,6 +762,15 @@
                     });
                     this.$watch('existingSavingsMultiplier', () => {
                         if (this.isValid) this.$nextTick(() => this.initChart());
+                    });
+                    this.$watch('showCoastFire', () => {
+                        if (this.isValid) this.$nextTick(() => this.initChart());
+                    });
+                    this.$watch('currentAge', () => {
+                        if (this.showCoastFire && this.isValid) this.$nextTick(() => this.initChart());
+                    });
+                    this.$watch('retirementAge', () => {
+                        if (this.showCoastFire && this.isValid) this.$nextTick(() => this.initChart());
                     });
                 }
             }
