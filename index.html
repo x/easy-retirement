@@ -623,87 +623,212 @@
                     // CoastFIRE: Amount needed today to coast to FIRE target by retirement
                     const coastFire = this.coastFireTarget;
 
-                    // Chart should extend to retirement age if CoastFIRE is enabled
-                    let maxYears = Math.max(5, Math.ceil(this.yearsToRetirement) + 5);
-                    if (this.showCoastFire && this.currentAge && this.retirementAge) {
-                        maxYears = Math.max(maxYears, this.yearsUntilRetirement + 5);
-                    }
+                    // Get withdrawal rate based on strategy
+                    const withdrawalRate = 1 / target; // If target is 25, withdrawal is 1/25 = 4%
 
-                    // Ensure maxYears is valid
-                    if (!isFinite(maxYears) || maxYears < 1) {
-                        maxYears = 30; // Default fallback
-                    }
-                    const years = [];
-                    const savings = [];
-                    const coastingSavings = [];
+                    // First pass: find when retirement targets are hit
+                    let yearHitRetirement = null;
+                    let yearCoastHitRetirement = null;
                     let yearHitCoastFire = null;
 
-                    for (let year = 0; year <= maxYears; year++) {
-                        years.push(year);
-
-                        // Main savings curve (continuing to save)
+                    // Search up to 100 years to find retirement points
+                    for (let year = 0; year <= 100; year++) {
                         const compoundedExisting = existing * Math.pow(1 + r, year);
                         const accumulatedSavings = S * (Math.pow(1 + r, year) - 1) / r;
                         const totalSavings = compoundedExisting + accumulatedSavings;
                         const multiplesOfSpending = totalSavings / (1 - S);
-                        savings.push(multiplesOfSpending);
 
-                        // CoastFIRE curve (save until CoastFIRE target, then stop and coast)
+                        // Track when we hit retirement target on main curve
+                        if (multiplesOfSpending >= target && yearHitRetirement === null) {
+                            yearHitRetirement = year;
+                        }
+
+                        // CoastFIRE calculations
+                        if (this.showCoastFire) {
+                            if (multiplesOfSpending >= coastFire && yearHitCoastFire === null) {
+                                yearHitCoastFire = year;
+                            }
+
+                            let coastValue;
+                            if (yearHitCoastFire === null) {
+                                coastValue = multiplesOfSpending;
+                            } else {
+                                const yearsCoasting = year - yearHitCoastFire;
+                                coastValue = coastFire * Math.pow(1 + r, yearsCoasting);
+                            }
+
+                            if (coastValue >= target && yearCoastHitRetirement === null) {
+                                yearCoastHitRetirement = year;
+                            }
+                        }
+
+                        // Stop searching once we've found all retirement points
+                        if (yearHitRetirement !== null && (!this.showCoastFire || yearCoastHitRetirement !== null)) {
+                            break;
+                        }
+                    }
+
+                    // Calculate maxYears: 25 years past retirement target or age 65
+                    let maxYears = 30; // Default fallback
+                    if (this.showCoastFire && this.currentAge && this.retirementAge) {
+                        // For CoastFIRE: go 25 years past age 65
+                        maxYears = Math.max(
+                            yearHitRetirement !== null ? yearHitRetirement + 25 : 30,
+                            this.yearsUntilRetirement + 25
+                        );
+                    } else {
+                        // For standard: go 25 years past retirement target
+                        maxYears = yearHitRetirement !== null ? yearHitRetirement + 25 : 30;
+                    }
+
+                    // Ensure maxYears is valid
+                    if (!isFinite(maxYears) || maxYears < 1) {
+                        maxYears = 30;
+                    }
+
+                    // Reset for second pass
+                    const years = [];
+                    const savings = [];
+                    const coastingSavings = [];
+                    const retirementDecay = [];
+                    const coastRetirementDecay = [];
+                    yearHitCoastFire = null;
+                    yearHitRetirement = null;
+                    yearCoastHitRetirement = null;
+
+                    for (let year = 0; year <= maxYears; year++) {
+                        years.push(year);
+
+                        // Main savings curve (continuing to save until retirement, then decay)
+                        const compoundedExisting = existing * Math.pow(1 + r, year);
+                        const accumulatedSavings = S * (Math.pow(1 + r, year) - 1) / r;
+                        const totalSavings = compoundedExisting + accumulatedSavings;
+                        const multiplesOfSpending = totalSavings / (1 - S);
+
+                        // Track when we hit retirement target on main curve
+                        if (multiplesOfSpending >= target && yearHitRetirement === null) {
+                            yearHitRetirement = year;
+                        }
+
+                        // Main curve: accumulate until retirement, then decay
+                        if (yearHitRetirement !== null) {
+                            const yearsRetired = year - yearHitRetirement;
+                            // After retirement: balance grows at r, withdrawals at withdrawal rate
+                            // Net growth rate = r - withdrawalRate
+                            const netGrowthRate = r - withdrawalRate;
+                            const decayValue = target * Math.pow(1 + netGrowthRate, yearsRetired);
+                            savings.push(decayValue);
+                            retirementDecay.push(null); // Not using separate decay line
+                        } else {
+                            savings.push(multiplesOfSpending);
+                            retirementDecay.push(null);
+                        }
+
+                        // CoastFIRE curve (save until CoastFIRE target, then coast, then decay at retirement)
                         if (this.showCoastFire) {
                             // Check if we've hit the CoastFIRE target
                             if (multiplesOfSpending >= coastFire && yearHitCoastFire === null) {
                                 yearHitCoastFire = year;
                             }
 
+                            let coastValue;
                             if (yearHitCoastFire === null) {
                                 // Haven't hit CoastFIRE yet, follow the savings curve
-                                coastingSavings.push(multiplesOfSpending);
+                                coastValue = multiplesOfSpending;
                             } else {
                                 // Hit CoastFIRE target, now just coast (compound growth only)
                                 const yearsCoasting = year - yearHitCoastFire;
-                                const coastValue = coastFire * Math.pow(1 + r, yearsCoasting);
+                                coastValue = coastFire * Math.pow(1 + r, yearsCoasting);
+                            }
+
+                            // Track when coast curve hits retirement target
+                            if (coastValue >= target && yearCoastHitRetirement === null) {
+                                yearCoastHitRetirement = year;
+                            }
+
+                            // Coast curve: accumulate until CoastFIRE, coast until retirement, then decay
+                            if (yearCoastHitRetirement !== null) {
+                                const yearsRetired = year - yearCoastHitRetirement;
+                                const netGrowthRate = r - withdrawalRate;
+                                const decayValue = target * Math.pow(1 + netGrowthRate, yearsRetired);
+                                coastingSavings.push(decayValue);
+                                coastRetirementDecay.push(null); // Not using separate decay line
+                            } else {
                                 coastingSavings.push(coastValue);
+                                coastRetirementDecay.push(null);
                             }
                         }
                     }
 
-                    return { years, savings, coastingSavings, target, coastFire };
+                    return { years, savings, coastingSavings, retirementDecay, coastRetirementDecay, target, coastFire };
                 },
 
-                updateChart(years, savings, coastingSavings, target, coastFire) {
+                updateChart(years, savings, coastingSavings, retirementDecay, coastRetirementDecay, target, coastFire) {
                     if (!this.chart) return;
 
                     try {
                         // Update labels (x-axis)
                         this.chart.data.labels = years;
 
-                        // Update main savings dataset
-                        this.chart.data.datasets[0].data = savings;
+                        // Manage all datasets
+                        const newDatasets = [
+                            // Dataset 0: Main savings curve
+                            {
+                                label: 'Savings (Continue Saving)',
+                                data: savings,
+                                borderColor: 'rgb(75, 192, 192)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.05)',
+                                tension: 0.1,
+                                fill: false,
+                                order: 1
+                            }
+                        ];
 
-                        // Update or add/remove coasting dataset
+                        // Dataset 1: Retirement decay (main curve)
+                        if (retirementDecay.some(v => v !== null)) {
+                            newDatasets.push({
+                                label: 'Retirement (Withdraw)',
+                                data: retirementDecay,
+                                borderColor: 'rgb(255, 99, 132)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.05)',
+                                tension: 0.1,
+                                fill: false,
+                                borderDash: [3, 3],
+                                spanGaps: false,
+                                order: 3
+                            });
+                        }
+
+                        // Dataset 2: CoastFIRE curve
                         if (this.showCoastFire && coastingSavings.length > 0) {
-                            if (this.chart.data.datasets.length > 1) {
-                                // Update existing coasting dataset
-                                this.chart.data.datasets[1].data = coastingSavings;
-                            } else {
-                                // Add coasting dataset
-                                this.chart.data.datasets.push({
-                                    label: 'Coast (Stop Saving)',
-                                    data: coastingSavings,
-                                    borderColor: 'rgb(255, 159, 64)',
-                                    backgroundColor: 'rgba(255, 159, 64, 0.05)',
+                            newDatasets.push({
+                                label: 'Coast (Stop Saving)',
+                                data: coastingSavings,
+                                borderColor: 'rgb(255, 159, 64)',
+                                backgroundColor: 'rgba(255, 159, 64, 0.05)',
+                                tension: 0.1,
+                                fill: false,
+                                borderDash: [5, 5],
+                                order: 2
+                            });
+
+                            // Dataset 3: Coast retirement decay
+                            if (coastRetirementDecay.some(v => v !== null)) {
+                                newDatasets.push({
+                                    label: 'Coast Retirement (Withdraw)',
+                                    data: coastRetirementDecay,
+                                    borderColor: 'rgb(153, 102, 255)',
+                                    backgroundColor: 'rgba(153, 102, 255, 0.05)',
                                     tension: 0.1,
                                     fill: false,
-                                    borderDash: [5, 5],
-                                    order: 2
+                                    borderDash: [3, 3],
+                                    spanGaps: false,
+                                    order: 4
                                 });
                             }
-                        } else {
-                            // Remove coasting dataset if it exists
-                            if (this.chart.data.datasets.length > 1) {
-                                this.chart.data.datasets.pop();
-                            }
                         }
+
+                        this.chart.data.datasets = newDatasets;
 
                         // Update target label
                         let targetLabel = '';
@@ -794,7 +919,7 @@
                             return;
                         }
 
-                        const { years, savings, coastingSavings, target, coastFire } = this.generateChartData();
+                        const { years, savings, coastingSavings, retirementDecay, coastRetirementDecay, target, coastFire } = this.generateChartData();
 
                         // Determine which strategy label to show on the main target line
                         let targetLabel = '';
@@ -818,7 +943,7 @@
 
                         // Build datasets
                         const datasets = [{
-                            label: 'Continue Saving',
+                            label: 'Savings (Continue Saving)',
                             data: savings,
                             borderColor: 'rgb(75, 192, 192)',
                             backgroundColor: 'rgba(75, 192, 192, 0.1)',
@@ -826,6 +951,21 @@
                             fill: true,
                             order: 1
                         }];
+
+                        // Add retirement decay (main curve)
+                        if (retirementDecay.some(v => v !== null)) {
+                            datasets.push({
+                                label: 'Retirement (Withdraw)',
+                                data: retirementDecay,
+                                borderColor: 'rgb(255, 99, 132)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.05)',
+                                tension: 0.1,
+                                fill: false,
+                                borderDash: [3, 3],
+                                spanGaps: false,
+                                order: 3
+                            });
+                        }
 
                         // Add coasting curve if enabled
                         if (this.showCoastFire && coastingSavings.length > 0) {
@@ -839,6 +979,21 @@
                                 borderDash: [5, 5],
                                 order: 2
                             });
+
+                            // Add coast retirement decay
+                            if (coastRetirementDecay.some(v => v !== null)) {
+                                datasets.push({
+                                    label: 'Coast Retirement (Withdraw)',
+                                    data: coastRetirementDecay,
+                                    borderColor: 'rgb(153, 102, 255)',
+                                    backgroundColor: 'rgba(153, 102, 255, 0.05)',
+                                    tension: 0.1,
+                                    fill: false,
+                                    borderDash: [3, 3],
+                                    spanGaps: false,
+                                    order: 4
+                                });
+                            }
                         }
 
                         // Build annotations - show all benchmarks except the currently selected strategy
@@ -968,7 +1123,7 @@
                                 animation: false, // Disable animations to reduce race conditions
                                 plugins: {
                                     legend: {
-                                        display: this.showCoastFire,
+                                        display: true,
                                         position: 'top'
                                     },
                                     annotation: {
