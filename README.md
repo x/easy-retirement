@@ -6,7 +6,7 @@ Calculates and visualizes your years to retirement based on an income-agnostic y
 
 ## Math
 
-$ t = \frac{\ln\left(\frac{m(1-S) \cdot r + S}{E \cdot r + S}\right)}{\ln(1 + r)} $
+$t = \frac{\ln\left(\frac{m(1-S) \cdot r + S}{E \cdot r + S}\right)}{\ln(1 + r)}$
 
 |     | description                                     | default |
 |-----|-------------------------------------------------|---------|
