@@ -182,7 +182,7 @@
                             </label>
                         </div>
                         <small x-show="showCoastFire && currentAge && retirementAge">
-                            CoastFIRE: Stop saving at <strong x-text="coastFireTarget.toFixed(1) + '×'"></strong> annual
+                            CoastFIRE: Stop saving at <strong x-text="formatMultiplier(coastFireTarget) + '×'"></strong> annual
                             spending and let compound growth reach <strong x-text="retirementMultiplier + '×'"></strong>
                             by age <span x-text="retirementAge"></span>
                         </small>
@@ -258,9 +258,9 @@
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge">
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(coastTargetFor(22) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(22).toFixed(1) + '×)'"></span>
+                                        x-text="formatMoney(coastTargetFor(22) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + formatMultiplier(coastTargetFor(22)) + '×)'"></span>
                                     <span x-show="calculatedPostTaxIncome === 0"
-                                        x-text="coastTargetFor(22).toFixed(1) + '×'"></span>
+                                        x-text="formatMultiplier(coastTargetFor(22)) + '×'"></span>
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge"
                                     x-text="coastGoalMetFor(22) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(22)))">
@@ -281,9 +281,9 @@
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge">
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(coastTargetFor(25) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(25).toFixed(1) + '×)'"></span>
+                                        x-text="formatMoney(coastTargetFor(25) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + formatMultiplier(coastTargetFor(25)) + '×)'"></span>
                                     <span x-show="calculatedPostTaxIncome === 0"
-                                        x-text="coastTargetFor(25).toFixed(1) + '×'"></span>
+                                        x-text="formatMultiplier(coastTargetFor(25)) + '×'"></span>
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge"
                                     x-text="coastGoalMetFor(25) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(25)))">
@@ -304,9 +304,9 @@
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge">
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(coastTargetFor(33) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(33).toFixed(1) + '×)'"></span>
+                                        x-text="formatMoney(coastTargetFor(33) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + formatMultiplier(coastTargetFor(33)) + '×)'"></span>
                                     <span x-show="calculatedPostTaxIncome === 0"
-                                        x-text="coastTargetFor(33).toFixed(1) + '×'"></span>
+                                        x-text="formatMultiplier(coastTargetFor(33)) + '×'"></span>
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge"
                                     x-text="coastGoalMetFor(33) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(33)))">
@@ -348,6 +348,10 @@
                 parseNumberInput(value) {
                     if (!value) return null;
                     return parseInt(value.replace(/,/g, ''));
+                },
+
+                formatMultiplier(value) {
+                    return Number.isInteger(value) ? value : value.toFixed(1);
                 },
 
                 // Display options
@@ -558,10 +562,10 @@
                     let message = `Saving <u>${this.savingsRatePercent}%</u> of your income`;
 
                     if (this.existingSavingsMultiplier && Math.abs(this.existingSavingsMultiplier) > 0.01) {
-                        const absMultiplier = Math.abs(this.existingSavingsMultiplier).toFixed(1);
+                        const absMultiplier = this.formatMultiplier(Math.abs(this.existingSavingsMultiplier));
                         const savedDesc = this.existingSavingsMultiplier > 0
-                            ? `with <u>${absMultiplier}x</u> your income already saved`
-                            : `starting <u>${absMultiplier}x</u> your income in debt`;
+                            ? `with <u>${absMultiplier}×</u> your income already saved`
+                            : `starting <u>${absMultiplier}×</u> your income in debt`;
                         message += `, ${savedDesc}`;
                     }
 
@@ -578,7 +582,7 @@
                 get coastFireExplanation() {
                     if (!this.isValid || !this.showCoastFire || !this.currentAge || !this.retirementAge) return '';
 
-                    const targetMultiple = this.coastFireTarget.toFixed(1);
+                    const targetMultiple = this.formatMultiplier(this.coastFireTarget);
                     const retirementAge = this.retirementAge;
                     const yearsToRetirement = this.yearsUntilRetirement;
                     const currentYear = new Date().getFullYear();
@@ -587,7 +591,7 @@
                     if (this.coastFireGoalMet) {
                         return `<b>OR</b> stop saving now and coast to <mark>${retirementYear}</mark> (age <mark>${retirementAge}</mark>)`;
                     } else {
-                        return `<b>OR</b> save to <u>${targetMultiple}x</u> spending then coast to <mark>${retirementYear}</mark> (age <mark>${retirementAge}</mark>)`;
+                        return `<b>OR</b> save to <u>${targetMultiple}×</u> spending then coast to <mark>${retirementYear}</mark> (age <mark>${retirementAge}</mark>)`;
                     }
                 },
 
@@ -721,7 +725,7 @@
                         // Update annotations
                         this.chart.options.plugins.annotation.annotations.mainTarget.yMin = target;
                         this.chart.options.plugins.annotation.annotations.mainTarget.yMax = target;
-                        this.chart.options.plugins.annotation.annotations.mainTarget.label.content = `${targetLabel}: ${target.toFixed(1)}x`;
+                        this.chart.options.plugins.annotation.annotations.mainTarget.label.content = `${targetLabel}: ${this.formatMultiplier(target)}×`;
 
                         // Update CoastFIRE annotation
                         if (this.showCoastFire) {
@@ -735,7 +739,7 @@
                                     borderDash: [8, 4],
                                     label: {
                                         display: true,
-                                        content: `CoastFIRE: ${coastFire.toFixed(1)}x`,
+                                        content: `CoastFIRE: ${this.formatMultiplier(coastFire)}×`,
                                         position: 'start',
                                         backgroundColor: 'rgba(54, 162, 235, 0.8)',
                                         color: '#fff',
@@ -745,7 +749,7 @@
                             } else {
                                 this.chart.options.plugins.annotation.annotations.coastFire.yMin = coastFire;
                                 this.chart.options.plugins.annotation.annotations.coastFire.yMax = coastFire;
-                                this.chart.options.plugins.annotation.annotations.coastFire.label.content = `CoastFIRE: ${coastFire.toFixed(1)}x`;
+                                this.chart.options.plugins.annotation.annotations.coastFire.label.content = `CoastFIRE: ${this.formatMultiplier(coastFire)}×`;
                             }
                         } else {
                             delete this.chart.options.plugins.annotation.annotations.coastFire;
@@ -871,7 +875,7 @@
                                 borderDash: [8, 4],
                                 label: {
                                     display: true,
-                                    content: `CoastFIRE: ${coastFire.toFixed(1)}x`,
+                                    content: `CoastFIRE: ${this.formatMultiplier(coastFire)}×`,
                                     position: 'start',
                                     backgroundColor: 'rgba(54, 162, 235, 0.8)',
                                     color: '#fff',
