@@ -7,20 +7,27 @@
     <title>Easy Retirement Calculator</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <link rel="stylesheet" href="app.css">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
 </head>
 
 <body>
-    <main class="container" x-data="retirementCalculator()">
+    <main class="container" x-data="retirementCalculator()" x-cloak>
         <h1>Easy Retirement Calculator</h1>
         <p>Calculate your years until retirement based on your savings rate</p>
         <article>
 
             <div>
                 <label for="savings-rate">
-                    Savings Rate (% of post-tax income)
-                    <input type="number" id="savings-rate" x-model.number="savingsRatePercent" min="1" max="100"
-                        step="1" placeholder="15" aria-label="Percent">
+                    Savings Rate
+                    <div class="input-group has-suffix">
+                        <input type="number" id="savings-rate" x-model.number.debounce.150ms="savingsRatePercent"
+                            min="1" max="100" step="1" placeholder="15" aria-label="Percent"
+                            :aria-invalid="savingsRatePercent > 0 && savingsRatePercent <= 100 ? 'false' : 'true'">
+                        <span class="suffix">%</span>
+                    </div>
                 </label>
                 <small>What percentage of your post-tax income do you save?</small>
             </div>
@@ -33,24 +40,28 @@
                     <div class="grid">
                         <label>
                             Annual Pre-Tax Income
-                            <input type="number" x-model.number="preTaxIncome" min="0" step="1000" placeholder="100000"
-                                aria-label="Dollar amount" @input="usePreTaxMode = true">
+                            <div class="input-group has-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" x-model.number.debounce.150ms="preTaxIncome" min="0" step="1000"
+                                    placeholder="100000" aria-label="Dollar amount">
+                            </div>
                         </label>
                         <label>
                             Tax Rate
-                            <input type="number" x-model.number="taxRatePercent" min="0" max="100" step="0.1"
-                                :placeholder="estimatedTaxRate.toFixed(1)" aria-label="Percent"
-                                @input="usePreTaxMode = true">
+                            <div class="input-group has-suffix">
+                                <input type="number" x-model.number.debounce.150ms="taxRatePercent" min="0" max="100"
+                                    step="0.1" :placeholder="estimatedTaxRate.toFixed(1)" aria-label="Percent">
+                                <span class="suffix">%</span>
+                            </div>
                         </label>
                     </div>
-                    <small x-show="usePreTaxMode && preTaxIncome > 0" x-text="postTaxIncomeText"></small>
 
                     <label>
-                        <strong>OR</strong> Annual Post-Tax Income (overrides above)
-                        <input type="number" x-model.number="postTaxIncomeOverride" min="0" step="1000"
-                            placeholder="Leave blank to use pre-tax calculation" aria-label="Dollar amount"
-                            @input="usePreTaxMode = false">
+                        <input type="checkbox" x-model="filingJointly">
+                        Filing jointly (married)
                     </label>
+
+                    <small x-show="preTaxIncome > 0" x-text="postTaxIncomeText"></small>
                 </fieldset>
 
                 <fieldset>
@@ -58,17 +69,27 @@
                     <div class="grid">
                         <label>
                             Already Saved
-                            <input type="number" x-model.number="alreadySaved" min="0" step="1000" placeholder="0"
-                                aria-label="Dollar amount">
+                            <div class="input-group has-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" x-model.number.debounce.150ms="alreadySaved" min="0" step="1000"
+                                    placeholder="0" aria-label="Dollar amount">
+                            </div>
                         </label>
                         <label>
                             Current Debt
-                            <input type="number" x-model.number="currentDebt" min="0" step="1000" placeholder="0"
-                                aria-label="Dollar amount">
+                            <div class="input-group has-prefix">
+                                <span class="prefix">$</span>
+                                <input type="number" x-model.number.debounce.150ms="currentDebt" min="0" step="1000"
+                                    placeholder="0" aria-label="Dollar amount">
+                            </div>
                         </label>
                     </div>
                     <small x-show="calculatedPostTaxIncome > 0 && (alreadySaved > 0 || currentDebt > 0)">
                         Net position: <strong x-text="netPositionText"></strong>
+                    </small>
+                    <small x-show="calculatedPostTaxIncome === 0 && (alreadySaved > 0 || currentDebt > 0)"
+                        style="color: var(--pico-del-color);">
+                        Enter your income above to see position as a multiple of annual income
                     </small>
                 </fieldset>
 
@@ -77,13 +98,19 @@
                     <div class="grid">
                         <label>
                             Expected Rate of Return
-                            <input type="number" x-model.number="rateOfReturnPercent" min="0" max="20" step="0.1"
-                                placeholder="5" aria-label="Percent">
+                            <div class="input-group has-suffix">
+                                <input type="number" x-model.number.debounce.150ms="rateOfReturnPercent" min="0"
+                                    max="20" step="0.1" placeholder="5" aria-label="Percent">
+                                <span class="suffix">%</span>
+                            </div>
                         </label>
                         <label>
                             Retirement Multiplier
-                            <input type="number" x-model.number="retirementMultiplier" min="1" max="50" step="1"
-                                placeholder="25" aria-label="Times">
+                            <div class="input-group has-suffix">
+                                <input type="number" x-model.number.debounce.150ms="retirementMultiplier" min="1"
+                                    max="50" step="1" placeholder="25" aria-label="Times">
+                                <span class="suffix">×</span>
+                            </div>
                         </label>
                     </div>
                     <small>Based on the 4% rule (25x = 4% withdrawal rate)</small>
@@ -109,8 +136,7 @@
                 // Income inputs (optional, for dollar-based calculations)
                 preTaxIncome: null,
                 taxRatePercent: null,
-                postTaxIncomeOverride: null,
-                usePreTaxMode: true,
+                filingJointly: false,
 
                 // Financial position (optional)
                 alreadySaved: 0,
@@ -124,14 +150,25 @@
                 estimateTaxRate(income) {
                     if (!income || income <= 0) return 25; // Default guess
 
-                    // Simplified progressive tax (federal + state estimate)
-                    if (income <= 11000) return 10;
-                    if (income <= 44725) return 15;
-                    if (income <= 95375) return 22;
-                    if (income <= 182100) return 26;
-                    if (income <= 231250) return 30;
-                    if (income <= 578125) return 35;
-                    return 40;
+                    if (this.filingJointly) {
+                        // Married filing jointly brackets (higher thresholds)
+                        if (income <= 22000) return 10;
+                        if (income <= 89075) return 15;
+                        if (income <= 190750) return 22;
+                        if (income <= 364200) return 26;
+                        if (income <= 462500) return 30;
+                        if (income <= 693750) return 35;
+                        return 40;
+                    } else {
+                        // Single filer brackets
+                        if (income <= 11000) return 10;
+                        if (income <= 44725) return 15;
+                        if (income <= 95375) return 22;
+                        if (income <= 182100) return 26;
+                        if (income <= 231250) return 30;
+                        if (income <= 578125) return 35;
+                        return 40;
+                    }
                 },
 
                 get estimatedTaxRate() {
@@ -140,10 +177,6 @@
                 },
 
                 get calculatedPostTaxIncome() {
-                    if (!this.usePreTaxMode && this.postTaxIncomeOverride) {
-                        return this.postTaxIncomeOverride;
-                    }
-
                     if (this.preTaxIncome && this.preTaxIncome > 0) {
                         const taxRate = this.estimatedTaxRate / 100;
                         return this.preTaxIncome * (1 - taxRate);
