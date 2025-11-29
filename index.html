@@ -182,8 +182,8 @@
                             </label>
                         </div>
                         <small x-show="showCoastFire && currentAge && retirementAge">
-                            CoastFIRE: Stop saving at <strong x-text="coastFireTarget.toFixed(1) + 'x'"></strong> annual
-                            spending and let compound growth reach <strong x-text="retirementMultiplier + 'x'"></strong>
+                            CoastFIRE: Stop saving at <strong x-text="coastFireTarget.toFixed(1) + '×'"></strong> annual
+                            spending and let compound growth reach <strong x-text="retirementMultiplier + '×'"></strong>
                             by age <span x-text="retirementAge"></span>
                         </small>
                     </fieldset>
@@ -196,9 +196,9 @@
                                     Retirement Goal
                                     <select x-model="fireStrategy" @change="updateMultiplierFromStrategy()"
                                         style="margin-top: 0rem;">
-                                        <option value="lean">LeanFIRE (22x / 4.5%)</option>
-                                        <option value="standard" selected>Standard FIRE (25x / 4%)</option>
-                                        <option value="fat">FatFIRE (33x / 3%)</option>
+                                        <option value="lean">LeanFIRE (22× / 4.5%)</option>
+                                        <option value="standard" selected>Standard FIRE (25× / 4%)</option>
+                                        <option value="fat">FatFIRE (33× / 3%)</option>
                                     </select>
                                 </label>
                             </div>
@@ -215,7 +215,7 @@
                         </div>
                         <small>
                             <span x-show="fireStrategy === 'lean'">Lower spending lifestyle, 4.5% withdrawal rate</span>
-                            <span x-show="fireStrategy === 'standard'">Based on the 4% rule (25x = 4% withdrawal
+                            <span x-show="fireStrategy === 'standard'">Based on the 4% rule (25× = 4% withdrawal
                                 rate)</span>
                             <span x-show="fireStrategy === 'fat'">Higher spending with more buffer, 3% withdrawal
                                 rate</span>
@@ -258,17 +258,17 @@
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge">
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(coastTargetFor(22) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(22).toFixed(1) + 'x)'"></span>
+                                        x-text="formatMoney(coastTargetFor(22) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(22).toFixed(1) + '×)'"></span>
                                     <span x-show="calculatedPostTaxIncome === 0"
-                                        x-text="coastTargetFor(22).toFixed(1) + 'x'"></span>
+                                        x-text="coastTargetFor(22).toFixed(1) + '×'"></span>
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge"
                                     x-text="coastGoalMetFor(22) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(22)))">
                                 </td>
                                 <td>
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(22 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (22x)'"></span>
-                                    <span x-show="calculatedPostTaxIncome === 0">22x</span>
+                                        x-text="formatMoney(22 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (22×)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">22×</span>
                                 </td>
                                 <td x-text="Math.round(yearsToTarget(22)) || 'Met ✓'"></td>
                             </tr>
@@ -281,17 +281,17 @@
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge">
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(coastTargetFor(25) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(25).toFixed(1) + 'x)'"></span>
+                                        x-text="formatMoney(coastTargetFor(25) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(25).toFixed(1) + '×)'"></span>
                                     <span x-show="calculatedPostTaxIncome === 0"
-                                        x-text="coastTargetFor(25).toFixed(1) + 'x'"></span>
+                                        x-text="coastTargetFor(25).toFixed(1) + '×'"></span>
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge"
                                     x-text="coastGoalMetFor(25) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(25)))">
                                 </td>
                                 <td>
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(25 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (25x)'"></span>
-                                    <span x-show="calculatedPostTaxIncome === 0">25x</span>
+                                        x-text="formatMoney(25 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (25×)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">25×</span>
                                 </td>
                                 <td x-text="Math.round(yearsToTarget(25)) || 'Met ✓'"></td>
                             </tr>
@@ -304,17 +304,17 @@
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge">
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(coastTargetFor(33) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(33).toFixed(1) + 'x)'"></span>
+                                        x-text="formatMoney(coastTargetFor(33) * calculatedPostTaxIncome * (1 - savingsRate)) + ' (' + coastTargetFor(33).toFixed(1) + '×)'"></span>
                                     <span x-show="calculatedPostTaxIncome === 0"
-                                        x-text="coastTargetFor(33).toFixed(1) + 'x'"></span>
+                                        x-text="coastTargetFor(33).toFixed(1) + '×'"></span>
                                 </td>
                                 <td x-show="showCoastFire && currentAge && retirementAge"
                                     x-text="coastGoalMetFor(33) ? 'Met ✓' : Math.round(yearsToTarget(coastTargetFor(33)))">
                                 </td>
                                 <td>
                                     <span x-show="calculatedPostTaxIncome > 0"
-                                        x-text="formatMoney(33 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (33x)'"></span>
-                                    <span x-show="calculatedPostTaxIncome === 0">33x</span>
+                                        x-text="formatMoney(33 * calculatedPostTaxIncome * (1 - savingsRate)) + ' (33×)'"></span>
+                                    <span x-show="calculatedPostTaxIncome === 0">33×</span>
                                 </td>
                                 <td x-text="Math.round(yearsToTarget(33)) || 'Met ✓'"></td>
                             </tr>
@@ -848,7 +848,7 @@
                                 borderDash: [5, 5],
                                 label: {
                                     display: true,
-                                    content: `${targetLabel}: ${target.toFixed(1)}x`,
+                                    content: `${targetLabel}: ${Number.isInteger(target) ? target : target.toFixed(1)}×`,
                                     position: 'end',
                                     backgroundColor: 'rgba(255, 99, 132, 0.8)',
                                     color: '#fff',
@@ -895,7 +895,7 @@
                                     borderDash: [3, 3],
                                     label: {
                                         display: true,
-                                        content: 'LeanFIRE: 22x',
+                                        content: 'LeanFIRE: 22×',
                                         position: 'start',
                                         backgroundColor: 'rgba(255, 206, 86, 0.8)',
                                         color: '#000',
@@ -917,7 +917,7 @@
                                     borderDash: [3, 3],
                                     label: {
                                         display: true,
-                                        content: 'Standard FIRE: 25x',
+                                        content: 'Standard FIRE: 25×',
                                         position: 'center',
                                         backgroundColor: 'rgba(100, 200, 100, 0.8)',
                                         color: '#fff',
@@ -939,7 +939,7 @@
                                     borderDash: [3, 3],
                                     label: {
                                         display: true,
-                                        content: 'FatFIRE: 33x',
+                                        content: 'FatFIRE: 33×',
                                         position: 'start',
                                         backgroundColor: 'rgba(153, 102, 255, 0.8)',
                                         color: '#fff',
